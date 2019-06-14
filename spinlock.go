@@ -5,6 +5,11 @@ import (
 	"sync/atomic"
 )
 
+const (
+	// same as go mutex active_spin
+	activeSpin = 4
+)
+
 type SpinLock struct {
 	f uint32
 }
@@ -13,10 +18,21 @@ func New() *SpinLock {
 	return &SpinLock{}
 }
 
-func (sl *SpinLock) Lock() {
+func (sl *SpinLock) LockSched() {
 	for !sl.TryLock() {
 		runtime.Gosched() //allow other goroutines to do stuff.
 	}
+}
+
+func (sl *SpinLock) Lock() {
+	for index := 0; index < activeSpin; index++ {
+		if sl.TryLock() {
+			return
+		}
+		continue
+	}
+
+	sl.LockSched()
 }
 
 func (sl *SpinLock) Unlock() {
